@@ -2,11 +2,12 @@ package main
 
 import (
     "fmt"
+    "html"
     "net/http"
 )
 
 func viewHandler(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintf(w, "<div>Hello world!</div>")
+    fmt.Fprintf(w, html.EscapeString(r.URL.Path))
 }
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
