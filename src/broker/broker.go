@@ -15,10 +15,12 @@ type Config struct {
 }
 
 func viewHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("cache-control", "private, max-age=0, no-store")
 	fmt.Fprintf(w, html.EscapeString(r.URL.Path))
 }
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("cache-control", "private, max-age=0, no-store")
 	fmt.Fprintf(w, "pong")
 }
 
