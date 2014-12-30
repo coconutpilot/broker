@@ -63,14 +63,13 @@ func main() {
 		server.Serve(l)
 	}()
 
+	// This is blocking:
 	select {
 	case signal := <-stop:
-		fmt.Printf("Got signal:%v\n", signal)
+		log.Printf("Got signal: %v\n", signal)
 	}
-	log.Println("Stopping listener")
 	l.Stop()
-	log.Println("Waiting on server")
+	log.Println("Waiting for daemon to shutdown")
 	wg.Wait()
 	log.Println("Exiting")
-
 }
