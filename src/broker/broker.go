@@ -3,6 +3,7 @@ package main
 import (
 	"code.google.com/p/gcfg"
 	"daemon"
+	"flag"
 	"fmt"
 	"html"
 	"log"
@@ -29,19 +30,23 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "pong")
 }
 
+var cfgfile = flag.String("config", "broker.cfg", "config filename")
+
 func main() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
 	log.Println("main()")
+
 	// Start signal handling early (avoid case when signals are delivered before handler installed)
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT)
 	signal.Notify(stop, syscall.SIGHUP)
 	signal.Notify(stop, syscall.SIGTERM)
 
+	flag.Parse()
 	var cfg Config
-	err := gcfg.ReadFileInto(&cfg, "broker.cfg")
+	err := gcfg.ReadFileInto(&cfg, *cfgfile)
 	if err != nil {
-		log.Fatalf("Failed to parse gcfg data: %s", err)
+		log.Fatalf("Failed to load config: %s", err)
 	}
 
 	srv_addr := fmt.Sprintf(":%d", cfg.Daemon.Port)
