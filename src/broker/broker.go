@@ -6,12 +6,15 @@ import (
 	"flag"
 	"fmt"
 	"html"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
 
 type Config struct {
@@ -20,14 +23,51 @@ type Config struct {
 	}
 }
 
+var wg sync.WaitGroup
+
 func viewHandler(w http.ResponseWriter, r *http.Request) {
+	wg.Add(1)
+	defer wg.Done()
+
+	log.Println("viewHandler()")
+
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
 	fmt.Fprintf(w, html.EscapeString(r.URL.Path))
 }
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
+	wg.Add(1)
+	defer wg.Done()
+
+	log.Println("pingHandler()")
+
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
 	fmt.Fprintf(w, "pong")
+}
+
+func putHandler(w http.ResponseWriter, r *http.Request) {
+	wg.Add(1)
+	defer wg.Done()
+
+	log.Println("putHandler()")
+
+	w.Header().Set("cache-control", "private, max-age=0, no-store")
+	if r.Method != "POST" {
+		http.Error(w, "Wrong method", 405)
+	}
+	log.Println(r.URL.Path)
+
+	queue := strings.TrimLeft(r.URL.Path, "/put/")
+	log.Println(queue)
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Fatalf("Body error: %s", err)
+	}
+	log.Printf("%s", body)
+	fmt.Fprint(w, "OK")
+	time.Sleep(100000)
+	log.Println("POST done")
 }
 
 var cfgfile = flag.String("config", "broker.cfg", "config filename")
@@ -58,12 +98,12 @@ func main() {
 
 	http.HandleFunc("/", viewHandler)
 	http.HandleFunc("/ping", pingHandler)
+	http.HandleFunc("/put/", putHandler)
 
 	server := http.Server{}
+	wg.Add(1)
 
-	var wg sync.WaitGroup
 	go func() {
-		wg.Add(1)
 		defer wg.Done()
 		server.Serve(l)
 	}()
