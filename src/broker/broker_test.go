@@ -16,7 +16,21 @@ func Test_PingHandler(t *testing.T) {
 	pingHandler(w, r)
 
 	if w.Body.String() != time.String() {
-		t.Errorf("expected %q but instead got %q", "pong", w.Body.String())
+		t.Errorf("expected %q but instead got %q", time.String(), w.Body.String())
+	}
+}
+
+func Test_PingHandler_loop(t *testing.T) {
+	for i := 0; i < 10000; i++ {
+		time := time.Now()
+		r, _ := http.NewRequest("POST", "", strings.NewReader(time.String()))
+		w := httptest.NewRecorder()
+
+		pingHandler(w, r)
+
+		if w.Body.String() != time.String() {
+			t.Errorf("expected %q but instead got %q", time.String(), w.Body.String())
+		}
 	}
 }
 
