@@ -42,7 +42,18 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("pingHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
-	fmt.Fprintf(w, "pong")
+
+	if r.Method != "POST" {
+		http.Error(w, "Wrong method", 405)
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Fatalf("Body error: %s", err)
+	}
+	log.Printf("%s", body)
+
+	fmt.Fprintf(w, "%s", body)
 }
 
 func putHandler(w http.ResponseWriter, r *http.Request) {

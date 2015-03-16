@@ -5,15 +5,17 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func Test_PingHandler(t *testing.T) {
-	r, _ := http.NewRequest("", "", nil)
+	time := time.Now()
+	r, _ := http.NewRequest("POST", "", strings.NewReader(time.String()))
 	w := httptest.NewRecorder()
 
 	pingHandler(w, r)
 
-	if w.Body.String() != "pong" {
+	if w.Body.String() != time.String() {
 		t.Errorf("expected %q but instead got %q", "pong", w.Body.String())
 	}
 }
