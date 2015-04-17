@@ -14,8 +14,16 @@ func main() {
 	time := time.Now()
 
 	req, err := http.NewRequest("POST", "http://localhost:8080/ping", strings.NewReader(time.String()))
+	if err != nil {
+		log.Fatalf("http.NewRequest => %v", err.Error())
+	}
+
 	req.Header.Add("User-Agent", "ElTaco")
 	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatalf("client.Do => %v", err.Error())
+	}
+
 	defer resp.Body.Close()
 
 	if err != nil {
