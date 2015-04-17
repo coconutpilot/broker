@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,20 +21,6 @@ func Test_PingHandler(t *testing.T) {
 	}
 }
 
-func Test_PingHandler_loop(t *testing.T) {
-	for i := 0; i < 10000; i++ {
-		time := time.Now()
-		r, _ := http.NewRequest("POST", "", strings.NewReader(time.String()))
-		w := httptest.NewRecorder()
-
-		pingHandler(w, r)
-
-		if w.Body.String() != time.String() {
-			t.Errorf("expected %q but instead got %q", time.String(), w.Body.String())
-		}
-	}
-}
-
 func Test_ViewHandler(t *testing.T) {
 	r, _ := http.NewRequest("GET", "http://foo.example.com/queue1", nil)
 	w := httptest.NewRecorder()
@@ -49,6 +36,12 @@ func Test_PutHandler1(t *testing.T) {
 	r, _ := http.NewRequest("GET", "http://foo.example.com/queue1", strings.NewReader(""))
 	w := httptest.NewRecorder()
 
+	var err error
+	dir, err = ioutil.TempDir("", "broker_test")
+	if err != nil {
+		t.Fatalf("Failed creating TempDir(): %s", err)
+	}
+
 	putHandler(w, r)
 
 	if w.Code != 405 {
@@ -57,7 +50,7 @@ func Test_PutHandler1(t *testing.T) {
 }
 
 func Test_PutHandler2(t *testing.T) {
-	r, _ := http.NewRequest("POST", "http://foo.example.com/queue1", strings.NewReader("PAYLOAD"))
+	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue1", strings.NewReader("PAYLOAD"))
 	w := httptest.NewRecorder()
 
 	putHandler(w, r)
