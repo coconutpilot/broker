@@ -3,6 +3,7 @@ package main
 import (
 	"code.google.com/p/gcfg"
 	"daemon"
+	//"path/filepath"
 	"flag"
 	"fmt"
 	"html"
@@ -20,6 +21,9 @@ import (
 type Config struct {
 	Daemon struct {
 		Port int
+	}
+	Storage struct {
+		Dir string
 	}
 }
 
@@ -45,6 +49,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != "POST" {
 		http.Error(w, "Wrong method", 405)
+		return
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
@@ -63,8 +68,9 @@ func putHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("putHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
-	if r.Method != "POST" {
+	if r.Method != "PUT" {
 		http.Error(w, "Wrong method", 405)
+		return
 	}
 	log.Println(r.URL.Path)
 
@@ -76,12 +82,89 @@ func putHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("Body error: %s", err)
 	}
 	log.Printf("%s", body)
-	fmt.Fprint(w, "OK")
-	time.Sleep(100000)
-	log.Println("POST done")
+
+	timestamp := time.Now().UnixNano()
+	filename := fmt.Sprintf("%s/%d", dir, timestamp)
+
+	log.Printf("Creating file: %s", filename)
+
+	f, err := os.Create(filename)
+	if err != nil {
+		log.Fatalf("Create file error: %s", err)
+	}
+	defer f.Close()
+
+	fmt.Fprintf(f, "%s", body)
+
+	fmt.Fprintln(w, "OK")
+	log.Println("putHandler() exit")
+}
+
+func getHandler(w http.ResponseWriter, r *http.Request) {
+	wg.Add(1)
+	defer wg.Done()
+
+	log.Println("getHandler()")
+
+	w.Header().Set("cache-control", "private, max-age=0, no-store")
+	//	fmt.Fprintf(w, html.EscapeString(r.URL.Path))
+
+	d, err := os.Open(dir)
+	if err != nil {
+		log.Fatalf("Open dir error: %s", err)
+	}
+	defer d.Close()
+
+	de, err := d.Readdirnames(10)
+	if err != nil {
+		// check for io.EOF
+		log.Fatalf("Readdir error: %s", err)
+	}
+
+	var data []byte
+	for _, de := range de {
+		filename := dir + "/" + de
+		log.Printf("Trying to lock file: %s\n", filename)
+		f, err := os.Open(filename)
+		if err != nil {
+			log.Fatalf("Open file error: %s", err)
+		}
+		defer f.Close()
+
+		fd := f.Fd()
+		err = syscall.Flock(int(fd), syscall.LOCK_EX+syscall.LOCK_NB)
+		if err != nil {
+			log.Fatalf("Lock blowed up: %s\n", err)
+		}
+		time.Sleep(10000000000)
+		data, err = ioutil.ReadAll(f)
+		if err != nil {
+			log.Fatalf("Read file error: %s", err)
+		}
+// order is wrong
+		os.Remove(filename)
+		if err != nil {
+			log.Fatalf("Remove file error: %s\n", err)
+		}
+
+		break
+		log.Fatalln("WTF")
+	}
+	fmt.Fprintf(w, string(data))
+}
+
+func getnextHandler(w http.ResponseWriter, r *http.Request) {
+	wg.Add(1)
+	defer wg.Done()
+
+	log.Println("getnextHandler()")
+
+	w.Header().Set("cache-control", "private, max-age=0, no-store")
+	fmt.Fprintf(w, html.EscapeString(r.URL.Path))
 }
 
 var cfgfile = flag.String("config", "broker.cfg", "config filename")
+var dir string
 
 func main() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
@@ -100,6 +183,9 @@ func main() {
 		log.Fatalf("Failed to load config: %s", err)
 	}
 
+	dir = cfg.Storage.Dir
+	//	log.Fatalf("%s", dir)
+
 	srv_addr := fmt.Sprintf(":%d", cfg.Daemon.Port)
 
 	l, err := daemon.New(srv_addr)
@@ -110,6 +196,8 @@ func main() {
 	http.HandleFunc("/", viewHandler)
 	http.HandleFunc("/ping", pingHandler)
 	http.HandleFunc("/put/", putHandler)
+	http.HandleFunc("/get/", getHandler)
+	http.HandleFunc("/getnext/", getnextHandler)
 
 	server := http.Server{}
 	wg.Add(1)
