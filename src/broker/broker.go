@@ -79,18 +79,21 @@ func putHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Fatalf("Body error: %s", err)
+		log.Printf("Body error: %s", err)
+		http.Error(w, "Retry operation", 400)
+		return
 	}
-	log.Printf("%s", body)
+	// log.Printf("%s", body)
 
 	timestamp := time.Now().UnixNano()
 	filename := fmt.Sprintf("%s/%d", dir, timestamp)
-
 	log.Printf("Creating file: %s", filename)
 
 	f, err := os.Create(filename)
 	if err != nil {
-		log.Fatalf("Create file error: %s", err)
+		log.Printf("Create file error: %s", err)
+		http.Error(w, "Retry operation", 503)
+		return
 	}
 	defer f.Close()
 
@@ -141,7 +144,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatalf("Read file error: %s", err)
 		}
-// order is wrong
+		// order is wrong
 		os.Remove(filename)
 		if err != nil {
 			log.Fatalf("Remove file error: %s\n", err)
