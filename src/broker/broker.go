@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"html"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -54,7 +55,10 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Fatalf("Body error: %s", err)
+		log.Printf("Body error: %s", err)
+		http.Error(w, "Retry operation", 503)
+		return
+
 	}
 	log.Printf("%s", body)
 
@@ -80,7 +84,7 @@ func putHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("Body error: %s", err)
-		http.Error(w, "Retry operation", 400)
+		http.Error(w, "Retry operation", 503)
 		return
 	}
 	// log.Printf("%s", body)
@@ -110,50 +114,79 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("getHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
-	//	fmt.Fprintf(w, html.EscapeString(r.URL.Path))
+	// fmt.Fprintf(w, html.EscapeString(r.URL.Path))
 
 	d, err := os.Open(dir)
 	if err != nil {
-		log.Fatalf("Open dir error: %s", err)
+		log.Printf("Open dir error: %s", err)
+		// The dir doesn't exist or too many open files are the leading
+		// cause of this error.  Make the client retry.
+
+		http.Error(w, "Retry operation", 503)
+		return
 	}
 	defer d.Close()
 
-	de, err := d.Readdirnames(10)
-	if err != nil {
-		// check for io.EOF
-		log.Fatalf("Readdir error: %s", err)
+	for {
+		de, err := d.Readdirnames(10)
+		if err != nil {
+			if err == io.EOF {
+				log.Println("Queue empty")
+				http.Error(w, "Queue empty", 404)
+				return
+			}
+			log.Printf("Readdir error: %s", err)
+			http.Error(w, "Retry operation", 503)
+			return
+		}
+
+		var data []byte
+		for _, de := range de {
+			filename := dir + "/" + de
+			log.Printf("Trying to lock file: %s\n", filename)
+			f, err := os.Open(filename)
+			if err != nil {
+				log.Printf("Open file error: %s", err)
+
+				// give the OS a chance to catch up
+				time.Sleep(time.Millisecond * 10)
+				// redo the Readdirnames
+				break
+			}
+			defer f.Close()
+
+			fd := f.Fd()
+			err = syscall.Flock(int(fd), syscall.LOCK_EX+syscall.LOCK_NB)
+			if err != nil {
+				if err == syscall.EAGAIN {
+					f.Close()
+					continue
+				}
+				log.Printf("Flock error: %s\n", err)
+				http.Error(w, "Retry operation", 503)
+				return
+			}
+
+			// free up the handle immediately
+			d.Close()
+
+			// time.Sleep(3 * time.Second) // testing aid
+
+			// do a chunked read?
+			data, err = ioutil.ReadAll(f)
+			if err != nil {
+				log.Fatalf("Read file error: %s", err) // XXX
+			}
+			// order is wrong?  Return OK before deleting?
+			os.Remove(filename)
+			if err != nil {
+				log.Fatalf("Remove file error: %s\n", err) // XXX
+			}
+
+			fmt.Fprintf(w, string(data))
+			return
+		}
 	}
-
-	var data []byte
-	for _, de := range de {
-		filename := dir + "/" + de
-		log.Printf("Trying to lock file: %s\n", filename)
-		f, err := os.Open(filename)
-		if err != nil {
-			log.Fatalf("Open file error: %s", err)
-		}
-		defer f.Close()
-
-		fd := f.Fd()
-		err = syscall.Flock(int(fd), syscall.LOCK_EX+syscall.LOCK_NB)
-		if err != nil {
-			log.Fatalf("Lock blowed up: %s\n", err)
-		}
-		time.Sleep(10000000000)
-		data, err = ioutil.ReadAll(f)
-		if err != nil {
-			log.Fatalf("Read file error: %s", err)
-		}
-		// order is wrong
-		os.Remove(filename)
-		if err != nil {
-			log.Fatalf("Remove file error: %s\n", err)
-		}
-
-		break
-		log.Fatalln("WTF")
-	}
-	fmt.Fprintf(w, string(data))
 }
 
 func getnextHandler(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +220,6 @@ func main() {
 	}
 
 	dir = cfg.Storage.Dir
-	//	log.Fatalf("%s", dir)
 
 	srv_addr := fmt.Sprintf(":%d", cfg.Daemon.Port)
 
