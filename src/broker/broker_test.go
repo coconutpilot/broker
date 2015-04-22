@@ -33,7 +33,20 @@ func Test_ViewHandler(t *testing.T) {
 }
 
 func Test_PutHandler1(t *testing.T) {
-	r, _ := http.NewRequest("GET", "http://foo.example.com/queue1", strings.NewReader(""))
+	// storage dir not setup
+	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue1", strings.NewReader(""))
+	w := httptest.NewRecorder()
+
+	putHandler(w, r)
+
+	if w.Code != 503 {
+		t.Errorf("Expected: 503 Got: %d", w.Code)
+	}
+}
+
+func Test_PutHandler2(t *testing.T) {
+	// normal put
+	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue1", strings.NewReader("PAYLOAD"))
 	w := httptest.NewRecorder()
 
 	var err error
@@ -44,18 +57,19 @@ func Test_PutHandler1(t *testing.T) {
 
 	putHandler(w, r)
 
-	if w.Code != 405 {
-		t.Errorf("Expected: 405 Got: %d", w.Code)
+	if w.Code != 200 {
+		t.Errorf("Expected: 200 Got: %d", w.Code)
 	}
 }
 
-func Test_PutHandler2(t *testing.T) {
-	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue1", strings.NewReader("PAYLOAD"))
+func Test_PutHandler3(t *testing.T) {
+	// wrong method
+	r, _ := http.NewRequest("POST", "http://foo.example.com/queue1", strings.NewReader("PAYLOAD"))
 	w := httptest.NewRecorder()
 
 	putHandler(w, r)
 
-	if w.Code != 200 {
-		t.Errorf("Expected: 200 Got: %d", w.Code)
+	if w.Code != 405 {
+		t.Errorf("Expected: 405 Got: %d", w.Code)
 	}
 }
