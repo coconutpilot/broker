@@ -4,12 +4,19 @@ import (
 	"errors"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
 type daemon struct {
 	*net.TCPListener
-	stop chan int
+	bus chan int
+	wg  sync.WaitGroup
+}
+
+type daemonConn struct {
+	net.Conn
+	wg *sync.WaitGroup
 }
 
 func New(address string) (*daemon, error) {
@@ -26,20 +33,23 @@ func New(address string) (*daemon, error) {
 
 	retval := &daemon{}
 	retval.TCPListener = l
-	retval.stop = make(chan int)
+	retval.bus = make(chan int)
+	retval.wg.Add(1)
 
 	return retval, nil
 }
 
 func (l *daemon) Accept() (net.Conn, error) {
 	log.Println("Accept()")
+
 	for {
 		l.SetDeadline(time.Now().Add(time.Second))
 
 		newConn, err := l.TCPListener.Accept()
 
 		select {
-		case <-l.stop:
+		case <-l.bus:
+			log.Println("Signal")
 			_ = l.TCPListener.Close()
 			return nil, errors.New("Shutting down, listening socket closed")
 			// we may have abandoned a freshly accepted connection in newConn here
@@ -57,11 +67,28 @@ func (l *daemon) Accept() (net.Conn, error) {
 			}
 		}
 
+		log.Println("returning newConn")
+		l.wg.Add(1)
+		newConn = daemonConn{Conn: newConn, wg: &l.wg}
 		return newConn, nil
 	}
 }
 
+func (l *daemon) Close() error {
+	log.Println("Listener Close()")
+	err := l.TCPListener.Close()
+	defer l.wg.Done()
+	return err
+}
+
 func (l *daemon) Stop() {
 	log.Println("Stop()")
-	close(l.stop)
+	close(l.bus)
+	l.wg.Wait()
+}
+
+func (w daemonConn) Close() error {
+	log.Println("Close()")
+	defer w.wg.Done()
+	return w.Conn.Close()
 }

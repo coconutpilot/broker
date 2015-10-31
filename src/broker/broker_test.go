@@ -2,12 +2,17 @@ package main
 
 import (
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+func init() {
+	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
+}
 
 func Test_PingHandler(t *testing.T) {
 	time := time.Now()

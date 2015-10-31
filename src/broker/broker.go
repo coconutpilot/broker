@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -28,12 +27,7 @@ type Config struct {
 	}
 }
 
-var wg sync.WaitGroup
-
 func viewHandler(w http.ResponseWriter, r *http.Request) {
-	wg.Add(1)
-	defer wg.Done()
-
 	log.Println("viewHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
@@ -41,9 +35,6 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
-	wg.Add(1)
-	defer wg.Done()
-
 	log.Println("pingHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
@@ -66,9 +57,6 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func putHandler(w http.ResponseWriter, r *http.Request) {
-	wg.Add(1)
-	defer wg.Done()
-
 	log.Println("putHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
@@ -100,6 +88,7 @@ func putHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
+	// time.Sleep(10 * time.Second) // testing aid
 
 	fmt.Fprintf(f, "%s", body)
 
@@ -108,9 +97,6 @@ func putHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHandler(w http.ResponseWriter, r *http.Request) {
-	wg.Add(1)
-	defer wg.Done()
-
 	log.Println("getHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
@@ -120,7 +106,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Open dir error: %s", err)
 		// The dir doesn't exist or too many open files are the leading
-		// cause of this error.  Make the client retry.
+		// causes of this error.  Make the client retry.
 
 		http.Error(w, "Retry operation", 503)
 		return
@@ -178,7 +164,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 				log.Fatalf("Read file error: %s", err) // XXX
 			}
 			// order is wrong?  Return OK before deleting?
-			os.Remove(filename)
+			err = os.Remove(filename)
 			if err != nil {
 				log.Fatalf("Remove file error: %s\n", err) // XXX
 			}
@@ -190,9 +176,6 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getnextHandler(w http.ResponseWriter, r *http.Request) {
-	wg.Add(1)
-	defer wg.Done()
-
 	log.Println("getnextHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
@@ -203,14 +186,14 @@ var cfgfile = flag.String("config", "broker.cfg", "config filename")
 var dir string
 
 func main() {
+	// Start signal handling early (avoid case when signals are delivered before handler installed)
+	bus := make(chan os.Signal, 1)
+	signal.Notify(bus, syscall.SIGINT)
+	signal.Notify(bus, syscall.SIGHUP)
+	signal.Notify(bus, syscall.SIGTERM)
+
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
 	log.Println("main()")
-
-	// Start signal handling early (avoid case when signals are delivered before handler installed)
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT)
-	signal.Notify(stop, syscall.SIGHUP)
-	signal.Notify(stop, syscall.SIGTERM)
 
 	flag.Parse()
 	var cfg Config
@@ -235,20 +218,16 @@ func main() {
 	http.HandleFunc("/getnext/", getnextHandler)
 
 	server := http.Server{}
-	wg.Add(1)
 
 	go func() {
-		defer wg.Done()
 		server.Serve(l)
 	}()
 
 	// This is blocking:
 	select {
-	case signal := <-stop:
+	case signal := <-bus:
 		log.Printf("Got signal: %v\n", signal)
 	}
 	l.Stop()
-	log.Println("Waiting for daemon to shutdown")
-	wg.Wait()
 	log.Println("Exiting")
 }
