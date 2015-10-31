@@ -66,7 +66,7 @@ func putHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Println(r.URL.Path)
 
-	queue := strings.TrimLeft(r.URL.Path, "/put/")
+	queue := strings.TrimPrefix(r.URL.Path, "/put/")
 	log.Println(queue)
 
 	body, err := ioutil.ReadAll(r.Body)
