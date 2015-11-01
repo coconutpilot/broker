@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,15 @@ import (
 
 func init() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
+	var err error
+	dir, err = ioutil.TempDir("", "broker_test")
+	if err != nil {
+		log.Panic("Failed ioutil.TempDir(): %s", err)
+	}
+	err = os.Mkdir(dir+"/testing", 0777)
+	if err != nil {
+		log.Panic("Failed os.Mkdir(): %s", err)
+	}
 }
 
 func Test_PingHandler_GET(t *testing.T) {
@@ -64,9 +74,9 @@ func Test_ViewHandler(t *testing.T) {
 	}
 }
 
-func Test_QueueHandler1(t *testing.T) {
+func Test_QueueHandler_Invalid(t *testing.T) {
 	// storage dir not setup
-	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue/", strings.NewReader(""))
+	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue/invalid", strings.NewReader(""))
 	w := httptest.NewRecorder()
 
 	queueHandler(w, r)
@@ -76,16 +86,10 @@ func Test_QueueHandler1(t *testing.T) {
 	}
 }
 
-func Test_QueueHandler2(t *testing.T) {
+func Test_QueueHandler_PUT(t *testing.T) {
 	// normal put
-	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue/", strings.NewReader("PAYLOAD"))
+	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue/testing", strings.NewReader("PAYLOAD"))
 	w := httptest.NewRecorder()
-
-	var err error
-	dir, err = ioutil.TempDir("", "broker_test")
-	if err != nil {
-		t.Fatalf("Failed creating TempDir(): %s", err)
-	}
 
 	queueHandler(w, r)
 
@@ -94,7 +98,19 @@ func Test_QueueHandler2(t *testing.T) {
 	}
 }
 
-func Test_QueueHandler3(t *testing.T) {
+func Test_QueueHandler_GET(t *testing.T) {
+	// normal get
+	r, _ := http.NewRequest("GET", "http://foo.example.com/queue/testing", nil)
+	w := httptest.NewRecorder()
+
+	queueHandler(w, r)
+
+	if w.Code != 200 {
+		t.Errorf("Expected: 200 Got: %d", w.Code)
+	}
+}
+
+func Test_QueueHandler_Invalid_Method(t *testing.T) {
 	// wrong method
 	r, _ := http.NewRequest("POST", "http://foo.example.com/queue/", strings.NewReader("PAYLOAD"))
 	w := httptest.NewRecorder()

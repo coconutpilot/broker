@@ -82,14 +82,14 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	queue = strings.TrimSuffix(queue, "/")
+
 	switch r.Method {
 	case "GET":
-		d, err := os.Open(dir)
+		d, err := os.Open(dir + "/" + queue)
 		if err != nil {
+			// XXX: return a permanent error if queue doesn't exist
 			log.Printf("Open dir error: %s", err)
-			// The dir doesn't exist or too many open files are the leading
-			// causes of this error.  Make the client retry.
-
 			http.Error(w, "Retry operation", 503)
 			return
 		}
@@ -110,7 +110,7 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 
 			var data []byte
 			for _, de := range de {
-				filename := dir + "/" + de
+				filename := dir + "/" + queue + "/" + de
 				log.Printf("Trying to lock file: %s\n", filename)
 				f, err := os.Open(filename)
 				if err != nil {
@@ -165,7 +165,7 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 		// log.Printf("%s", body)
 
 		timestamp := time.Now().UnixNano()
-		filename := fmt.Sprintf("%s/%d", dir, timestamp)
+		filename := fmt.Sprintf("%s/%s/%d", dir, queue, timestamp)
 		log.Printf("Creating file: %s", filename)
 
 		f, err := os.Create(filename)
