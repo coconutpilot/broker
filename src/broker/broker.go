@@ -220,7 +220,7 @@ func main() {
 	}
 
 	http.HandleFunc("/", viewHandler)
-	http.HandleFunc("/ping", pingHandler)
+	http.HandleFunc("/ping/", pingHandler)
 	http.HandleFunc("/queue/", queueHandler)
 
 	server := http.Server{}
