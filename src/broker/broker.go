@@ -1,5 +1,4 @@
 package main
-// test comment
 
 import (
 	"code.google.com/p/gcfg"
