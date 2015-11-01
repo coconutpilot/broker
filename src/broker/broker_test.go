@@ -27,31 +27,31 @@ func Test_PingHandler(t *testing.T) {
 }
 
 func Test_ViewHandler(t *testing.T) {
-	r, _ := http.NewRequest("GET", "http://foo.example.com/queue1", nil)
+	r, _ := http.NewRequest("GET", "http://foo.example.com/nada", nil)
 	w := httptest.NewRecorder()
 
 	viewHandler(w, r)
 
-	if w.Body.String() != "/queue1" {
-		t.Errorf("expected %q but instead got %q", "/queue1", w.Body.String())
+	if w.Body.String() != "/nada" {
+		t.Errorf("expected %q but instead got %q", "/nada", w.Body.String())
 	}
 }
 
-func Test_PutHandler1(t *testing.T) {
+func Test_QueueHandler1(t *testing.T) {
 	// storage dir not setup
-	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue1", strings.NewReader(""))
+	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue/", strings.NewReader(""))
 	w := httptest.NewRecorder()
 
-	putHandler(w, r)
+	queueHandler(w, r)
 
 	if w.Code != 503 {
 		t.Errorf("Expected: 503 Got: %d", w.Code)
 	}
 }
 
-func Test_PutHandler2(t *testing.T) {
+func Test_QueueHandler2(t *testing.T) {
 	// normal put
-	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue1", strings.NewReader("PAYLOAD"))
+	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue/", strings.NewReader("PAYLOAD"))
 	w := httptest.NewRecorder()
 
 	var err error
@@ -60,19 +60,19 @@ func Test_PutHandler2(t *testing.T) {
 		t.Fatalf("Failed creating TempDir(): %s", err)
 	}
 
-	putHandler(w, r)
+	queueHandler(w, r)
 
 	if w.Code != 200 {
 		t.Errorf("Expected: 200 Got: %d", w.Code)
 	}
 }
 
-func Test_PutHandler3(t *testing.T) {
+func Test_QueueHandler3(t *testing.T) {
 	// wrong method
-	r, _ := http.NewRequest("POST", "http://foo.example.com/queue1", strings.NewReader("PAYLOAD"))
+	r, _ := http.NewRequest("POST", "http://foo.example.com/queue/", strings.NewReader("PAYLOAD"))
 	w := httptest.NewRecorder()
 
-	putHandler(w, r)
+	queueHandler(w, r)
 
 	if w.Code != 405 {
 		t.Errorf("Expected: 405 Got: %d", w.Code)
