@@ -6,7 +6,6 @@ import (
 	//"path/filepath"
 	"flag"
 	"fmt"
-	"html"
 	"io"
 	"io/ioutil"
 	"log"
@@ -31,7 +30,7 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("viewHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
-	fmt.Fprintf(w, html.EscapeString(r.URL.Path))
+	fmt.Fprintf(w, r.URL.String())
 }
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
@@ -39,21 +38,36 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
 
-	if r.Method != "POST" {
+	switch r.Method {
+	case "GET":
+		log.Printf("pong: %s", r.URL.String())
+		fmt.Fprintf(w, r.URL.String())
+
+	case "POST":
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Body error: %s", err)
+			http.Error(w, "Error", 500)
+			return
+		}
+		log.Printf("pong: %s", body)
+		fmt.Fprintf(w, "%s", body)
+
+	case "PUT":
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Body error: %s", err)
+			http.Error(w, "Error", 500)
+			return
+		}
+		log.Printf("pong: %s", body)
+		fmt.Fprintf(w, "%s", body)
+
+	default:
 		http.Error(w, "Wrong method", 405)
 		return
 	}
-
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Printf("Body error: %s", err)
-		http.Error(w, "Retry operation", 503)
-		return
-
-	}
-	log.Printf("%s", body)
-
-	fmt.Fprintf(w, "%s", body)
+	log.Println("pingHandler() exit")
 }
 
 func queueHandler(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -14,7 +15,20 @@ func init() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
 }
 
-func Test_PingHandler(t *testing.T) {
+func Test_PingHandler_GET(t *testing.T) {
+	time := time.Now()
+	uri := fmt.Sprintf("http://foo.example.com/ping?q=%s", time.String())
+	r, _ := http.NewRequest("GET", uri, nil)
+	w := httptest.NewRecorder()
+
+	pingHandler(w, r)
+
+	if w.Body.String() != uri {
+		t.Errorf("expected %q but instead got %q", uri, w.Body.String())
+	}
+}
+
+func Test_PingHandler_POST(t *testing.T) {
 	time := time.Now()
 	r, _ := http.NewRequest("POST", "", strings.NewReader(time.String()))
 	w := httptest.NewRecorder()
@@ -26,14 +40,27 @@ func Test_PingHandler(t *testing.T) {
 	}
 }
 
+func Test_PingHandler_PUT(t *testing.T) {
+	time := time.Now()
+	r, _ := http.NewRequest("PUT", "", strings.NewReader(time.String()))
+	w := httptest.NewRecorder()
+
+	pingHandler(w, r)
+
+	if w.Body.String() != time.String() {
+		t.Errorf("expected %q but instead got %q", time.String(), w.Body.String())
+	}
+}
+
 func Test_ViewHandler(t *testing.T) {
-	r, _ := http.NewRequest("GET", "http://foo.example.com/nada", nil)
+	testdata := "http://foo.example.com/nada"
+	r, _ := http.NewRequest("GET", testdata, nil)
 	w := httptest.NewRecorder()
 
 	viewHandler(w, r)
 
-	if w.Body.String() != "/nada" {
-		t.Errorf("expected %q but instead got %q", "/nada", w.Body.String())
+	if w.Body.String() != testdata {
+		t.Errorf("expected %q but instead got %q", testdata, w.Body.String())
 	}
 }
 
