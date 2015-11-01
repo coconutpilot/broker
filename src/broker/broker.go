@@ -56,130 +56,124 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%s", body)
 }
 
-func putHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("putHandler()")
+func queueHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("queueHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
-	if r.Method != "PUT" {
-		http.Error(w, "Wrong method", 405)
+
+	queue := strings.TrimPrefix(r.URL.Path, "/queue/")
+	if r.URL.Path == queue {
+		log.Println("Internal Error, path expected a prefix of /queue/, was", r.URL.Path)
+		http.Error(w, "Internal Error", 500)
 		return
 	}
-	log.Println(r.URL.Path)
 
-	queue := strings.TrimPrefix(r.URL.Path, "/put/")
-	log.Println(queue)
-
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.Printf("Body error: %s", err)
-		http.Error(w, "Retry operation", 503)
-		return
-	}
-	// log.Printf("%s", body)
-
-	timestamp := time.Now().UnixNano()
-	filename := fmt.Sprintf("%s/%d", dir, timestamp)
-	log.Printf("Creating file: %s", filename)
-
-	f, err := os.Create(filename)
-	if err != nil {
-		log.Printf("Create file error: %s", err)
-		http.Error(w, "Retry operation", 503)
-		return
-	}
-	defer f.Close()
-	// time.Sleep(10 * time.Second) // testing aid
-
-	fmt.Fprintf(f, "%s", body)
-
-	fmt.Fprintln(w, "OK")
-	log.Println("putHandler() exit")
-}
-
-func getHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("getHandler()")
-
-	w.Header().Set("cache-control", "private, max-age=0, no-store")
-	// fmt.Fprintf(w, html.EscapeString(r.URL.Path))
-
-	d, err := os.Open(dir)
-	if err != nil {
-		log.Printf("Open dir error: %s", err)
-		// The dir doesn't exist or too many open files are the leading
-		// causes of this error.  Make the client retry.
-
-		http.Error(w, "Retry operation", 503)
-		return
-	}
-	defer d.Close()
-
-	for {
-		de, err := d.Readdirnames(10)
+	switch r.Method {
+	case "GET":
+		d, err := os.Open(dir)
 		if err != nil {
-			if err == io.EOF {
-				log.Println("Queue empty")
-				http.Error(w, "Queue empty", 404)
-				return
-			}
-			log.Printf("Readdir error: %s", err)
+			log.Printf("Open dir error: %s", err)
+			// The dir doesn't exist or too many open files are the leading
+			// causes of this error.  Make the client retry.
+
 			http.Error(w, "Retry operation", 503)
 			return
 		}
+		defer d.Close()
 
-		var data []byte
-		for _, de := range de {
-			filename := dir + "/" + de
-			log.Printf("Trying to lock file: %s\n", filename)
-			f, err := os.Open(filename)
+		for {
+			de, err := d.Readdirnames(10)
 			if err != nil {
-				log.Printf("Open file error: %s", err)
-
-				// give the OS a chance to catch up
-				time.Sleep(time.Millisecond * 10)
-				// redo the Readdirnames
-				break
-			}
-			defer f.Close()
-
-			fd := f.Fd()
-			err = syscall.Flock(int(fd), syscall.LOCK_EX+syscall.LOCK_NB)
-			if err != nil {
-				if err == syscall.EAGAIN {
-					f.Close()
-					continue
+				if err == io.EOF {
+					log.Println("Queue empty")
+					http.Error(w, "Queue empty", 404)
+					return
 				}
-				log.Printf("Flock error: %s\n", err)
+				log.Printf("Readdir error: %s", err)
 				http.Error(w, "Retry operation", 503)
 				return
 			}
 
-			// free up the handle immediately
-			d.Close()
+			var data []byte
+			for _, de := range de {
+				filename := dir + "/" + de
+				log.Printf("Trying to lock file: %s\n", filename)
+				f, err := os.Open(filename)
+				if err != nil {
+					log.Printf("Open file error: %s", err)
 
-			// time.Sleep(3 * time.Second) // testing aid
+					// give the OS a chance to catch up
+					time.Sleep(time.Millisecond * 10)
+					// redo the Readdirnames
+					break
+				}
+				defer f.Close()
 
-			// do a chunked read?
-			data, err = ioutil.ReadAll(f)
-			if err != nil {
-				log.Fatalf("Read file error: %s", err) // XXX
+				fd := f.Fd()
+				err = syscall.Flock(int(fd), syscall.LOCK_EX+syscall.LOCK_NB)
+				if err != nil {
+					if err == syscall.EAGAIN {
+						f.Close()
+						continue
+					}
+					log.Printf("Flock error: %s\n", err)
+					http.Error(w, "Retry operation", 503)
+					return
+				}
+
+				// free up the handle immediately
+				d.Close()
+
+				// time.Sleep(3 * time.Second) // testing aid
+
+				// do a chunked read?
+				data, err = ioutil.ReadAll(f)
+				if err != nil {
+					log.Fatalf("Read file error: %s", err) // XXX
+				}
+				// order is wrong?  Return OK before deleting?
+				err = os.Remove(filename)
+				if err != nil {
+					log.Fatalf("Remove file error: %s\n", err) // XXX
+				}
+
+				fmt.Fprintf(w, string(data))
+				return
 			}
-			// order is wrong?  Return OK before deleting?
-			err = os.Remove(filename)
-			if err != nil {
-				log.Fatalf("Remove file error: %s\n", err) // XXX
-			}
-
-			fmt.Fprintf(w, string(data))
+		}
+	case "PUT":
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Body error: %s", err)
+			http.Error(w, "Retry operation", 503)
 			return
 		}
+		// log.Printf("%s", body)
+
+		timestamp := time.Now().UnixNano()
+		filename := fmt.Sprintf("%s/%d", dir, timestamp)
+		log.Printf("Creating file: %s", filename)
+
+		f, err := os.Create(filename)
+		if err != nil {
+			log.Printf("Create file error: %s", err)
+			http.Error(w, "Retry operation", 503)
+			return
+		}
+		defer f.Close()
+		// time.Sleep(10 * time.Second) // testing aid
+
+		fmt.Fprintf(f, "%s", body)
+
+		fmt.Fprintln(w, "OK")
+
+	default:
+		log.Println("Wrong method", r.Method)
+		http.Error(w, "Wrong method", 405)
+		return
 	}
-}
 
-func getnextHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("getnextHandler()")
-
-	w.Header().Set("cache-control", "private, max-age=0, no-store")
-	fmt.Fprintf(w, html.EscapeString(r.URL.Path))
+	log.Println("putHandler() exit")
 }
 
 var cfgfile = flag.String("config", "broker.cfg", "config filename")
@@ -213,9 +207,7 @@ func main() {
 
 	http.HandleFunc("/", viewHandler)
 	http.HandleFunc("/ping", pingHandler)
-	http.HandleFunc("/put/", putHandler)
-	http.HandleFunc("/get/", getHandler)
-	http.HandleFunc("/getnext/", getnextHandler)
+	http.HandleFunc("/queue/", queueHandler)
 
 	server := http.Server{}
 
