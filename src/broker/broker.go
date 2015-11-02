@@ -1,7 +1,6 @@
 package main
 
 import (
-	"code.google.com/p/gcfg"
 	"daemon"
 	//"path/filepath"
 	"flag"
@@ -16,15 +15,6 @@ import (
 	"syscall"
 	"time"
 )
-
-type Config struct {
-	Daemon struct {
-		Port int
-	}
-	Storage struct {
-		Dir string
-	}
-}
 
 func viewHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("viewHandler()")
@@ -154,7 +144,6 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					log.Printf("Remove file error: %s", err)
 				}
-
 				return
 			}
 		}
@@ -193,7 +182,6 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("putHandler() exit")
 }
 
-var cfgfile = flag.String("config", "broker.cfg", "config filename")
 var dir string
 
 func main() {
@@ -206,16 +194,12 @@ func main() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
 	log.Println("main()")
 
+	dirtemp := flag.String("workingdir", "/tmp/broker", "working dir")
+	port := flag.Int("port", 8080, "listen port")
 	flag.Parse()
-	var cfg Config
-	err := gcfg.ReadFileInto(&cfg, *cfgfile)
-	if err != nil {
-		log.Fatalf("Failed to load config: %s", err)
-	}
 
-	dir = cfg.Storage.Dir
-
-	srv_addr := fmt.Sprintf(":%d", cfg.Daemon.Port)
+	dir = fmt.Sprintf("%s", *dirtemp)
+	srv_addr := fmt.Sprintf(":%d", *port)
 
 	l, err := daemon.New(srv_addr)
 	if err != nil {
