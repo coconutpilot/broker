@@ -143,15 +143,18 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 				// do a chunked read?
 				data, err = ioutil.ReadAll(f)
 				if err != nil {
-					log.Fatalf("Read file error: %s", err) // XXX
-				}
-				// order is wrong?  Return OK before deleting?
-				err = os.Remove(filename)
-				if err != nil {
-					log.Fatalf("Remove file error: %s\n", err) // XXX
+					log.Printf("Read file error: %s", err)
+					http.Error(w, "Retry operation", 503)
+					return
 				}
 
 				fmt.Fprintf(w, string(data))
+
+				err = os.Remove(filename)
+				if err != nil {
+					log.Printf("Remove file error: %s", err)
+				}
+
 				return
 			}
 		}
