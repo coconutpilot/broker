@@ -76,7 +76,7 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
-		d, err := os.Open(dir + "/" + queue)
+		d, err := os.Open(ctx.datadir + "/" + queue)
 		if err != nil {
 			// XXX: return a permanent error if queue doesn't exist
 			log.Printf("Open dir error: %s", err)
@@ -100,7 +100,7 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 
 			var data []byte
 			for _, de := range de {
-				filename := dir + "/" + queue + "/" + de
+				filename := ctx.datadir + "/" + queue + "/" + de
 				log.Printf("Trying to lock file: %s\n", filename)
 				f, err := os.Open(filename)
 				if err != nil {
@@ -157,7 +157,7 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 		// log.Printf("%s", body)
 
 		timestamp := time.Now().UnixNano()
-		filename := fmt.Sprintf("%s/%s/%d", dir, queue, timestamp)
+		filename := fmt.Sprintf("%s/%s/%d", ctx.datadir, queue, timestamp)
 		log.Printf("Creating file: %s", filename)
 
 		f, err := os.Create(filename)
@@ -182,7 +182,12 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("putHandler() exit")
 }
 
-var dir string
+type server struct {
+	datadir string
+	port    int
+}
+
+var ctx server
 
 func main() {
 	// Start signal handling early (avoid case when signals are delivered before handler installed)
@@ -194,12 +199,13 @@ func main() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
 	log.Println("main()")
 
-	dirtemp := flag.String("workingdir", "/tmp/broker", "working dir")
-	port := flag.Int("port", 8080, "listen port")
+	dirtemp := flag.String("datadir", "", "datadir")
+	porttemp := flag.Int("port", 8080, "listen port")
 	flag.Parse()
 
-	dir = fmt.Sprintf("%s", *dirtemp)
-	srv_addr := fmt.Sprintf(":%d", *port)
+	ctx.datadir = fmt.Sprintf("%s", *dirtemp)
+	ctx.port = *porttemp
+	srv_addr := fmt.Sprintf(":%d", *porttemp)
 
 	l, err := daemon.New(srv_addr)
 	if err != nil {

@@ -15,11 +15,11 @@ import (
 func init() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
 	var err error
-	dir, err = ioutil.TempDir("", "broker_test")
+	ctx.datadir, err = ioutil.TempDir("", "broker_test")
 	if err != nil {
 		log.Panic("Failed ioutil.TempDir(): %s", err)
 	}
-	err = os.Mkdir(dir+"/testing", 0777)
+	err = os.Mkdir(ctx.datadir+"/testing", 0777)
 	if err != nil {
 		log.Panic("Failed os.Mkdir(): %s", err)
 	}
