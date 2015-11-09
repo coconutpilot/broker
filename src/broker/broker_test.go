@@ -128,8 +128,8 @@ func Test_QueueHandler_GET(t *testing.T) {
 
 	queueHandler(ctx, w, r)
 
-	if w.Code != 200 {
-		t.Errorf("Expected: 200 Got: %d", w.Code)
+	if w.Code != 404 {
+		t.Errorf("Expected: 404 Got: %d", w.Code)
 	}
 }
 
