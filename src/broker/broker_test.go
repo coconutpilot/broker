@@ -18,7 +18,7 @@ func init() {
 
 func datadir_testing() (dir string) {
 	var err error
-	dir, err = ioutil.TempDir("", "broker_test")
+	dir, err = ioutil.TempDir("", "broker_test_")
 	if err != nil {
 		log.Panic("Failed ioutil.TempDir(): %s", err)
 	}
@@ -26,6 +26,7 @@ func datadir_testing() (dir string) {
 	if err != nil {
 		log.Panic("Failed os.Mkdir(): %s", err)
 	}
+	log.Printf("Test datadir is: %s\n", dir)
 	return
 }
 
