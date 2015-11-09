@@ -212,12 +212,12 @@ func main() {
 	porttemp := flag.Int("port", 8080, "listen port")
 	flag.Parse()
 
-	var ctx context
-	ctx.datadir = fmt.Sprintf("%s", *dirtemp)
-	if ctx.datadir == "" {
+	if *dirtemp == "" {
 		log.Fatal("--datadir <datadir> missing")
 	}
 
+	var ctx context
+	ctx.datadir = fmt.Sprintf("%s", *dirtemp)
 	ctx.port = *porttemp
 	srv_addr := fmt.Sprintf(":%d", *porttemp)
 
