@@ -109,7 +109,6 @@ func Test_QueueHandler_PUT(t *testing.T) {
 	var ctx context
 	ctx.datadir = datadir_testing()
 
-	// normal put
 	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue/testing", strings.NewReader("PAYLOAD"))
 	w := httptest.NewRecorder()
 
@@ -124,7 +123,6 @@ func Test_QueueHandler_GET(t *testing.T) {
 	var ctx context
 	ctx.datadir = datadir_testing()
 
-	// normal get
 	r, _ := http.NewRequest("GET", "http://foo.example.com/queue/testing", nil)
 	w := httptest.NewRecorder()
 
@@ -139,7 +137,6 @@ func Test_QueueHandler_Invalid_Method(t *testing.T) {
 	var ctx context
 	ctx.datadir = datadir_testing()
 
-	// wrong method
 	r, _ := http.NewRequest("POST", "http://foo.example.com/queue/", strings.NewReader("PAYLOAD"))
 	w := httptest.NewRecorder()
 
