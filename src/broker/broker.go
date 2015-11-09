@@ -16,14 +16,30 @@ import (
 	"time"
 )
 
-func viewHandler(w http.ResponseWriter, r *http.Request) {
+type context struct {
+	datadir string
+	port    int
+}
+
+type contextFunc func(c context, w http.ResponseWriter, r *http.Request)
+
+type contextHandler struct {
+	c context
+	f contextFunc
+}
+
+func (h contextHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.f(h.c, w, r)
+}
+
+func viewHandler(ctx context, w http.ResponseWriter, r *http.Request) {
 	log.Println("viewHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
 	fmt.Fprintf(w, r.URL.String())
 }
 
-func pingHandler(w http.ResponseWriter, r *http.Request) {
+func pingHandler(ctx context, w http.ResponseWriter, r *http.Request) {
 	log.Println("pingHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
@@ -60,7 +76,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("pingHandler() exit")
 }
 
-func queueHandler(w http.ResponseWriter, r *http.Request) {
+func queueHandler(ctx context, w http.ResponseWriter, r *http.Request) {
 	log.Println("queueHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
@@ -182,13 +198,6 @@ func queueHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("putHandler() exit")
 }
 
-type server struct {
-	datadir string
-	port    int
-}
-
-var ctx server
-
 func main() {
 	// Start signal handling early (avoid case when signals are delivered before handler installed)
 	bus := make(chan os.Signal, 1)
@@ -203,7 +212,12 @@ func main() {
 	porttemp := flag.Int("port", 8080, "listen port")
 	flag.Parse()
 
+	var ctx context
 	ctx.datadir = fmt.Sprintf("%s", *dirtemp)
+	if ctx.datadir == "" {
+		log.Fatal("--datadir <datadir> missing")
+	}
+
 	ctx.port = *porttemp
 	srv_addr := fmt.Sprintf(":%d", *porttemp)
 
@@ -212,9 +226,9 @@ func main() {
 		log.Fatalf("Failed to create listener: %s", err)
 	}
 
-	http.HandleFunc("/", viewHandler)
-	http.HandleFunc("/ping/", pingHandler)
-	http.HandleFunc("/queue/", queueHandler)
+	http.Handle("/", contextHandler{ctx, viewHandler})
+	http.Handle("/ping/", contextHandler{ctx, pingHandler})
+	http.Handle("/queue/", contextHandler{ctx, queueHandler})
 
 	server := http.Server{}
 
