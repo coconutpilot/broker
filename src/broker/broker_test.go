@@ -95,7 +95,6 @@ func Test_QueueHandler_Invalid(t *testing.T) {
 	var ctx context
 	ctx.datadir = datadir_testing()
 
-	// storage dir not setup
 	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue/invalid", strings.NewReader(""))
 	w := httptest.NewRecorder()
 
