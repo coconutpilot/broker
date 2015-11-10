@@ -133,6 +133,30 @@ func Test_QueueHandler_GET(t *testing.T) {
 	}
 }
 
+func Test_QueueHandler_GET2(t *testing.T) {
+	var ctx context
+	ctx.datadir = datadir_testing()
+
+	time := time.Now()
+	r, _ := http.NewRequest("PUT", "http://foo.example.com/queue/testing", strings.NewReader(time.String()))
+	w := httptest.NewRecorder()
+
+	queueHandler(ctx, w, r)
+
+	if w.Code != 200 {
+		t.Errorf("Expected: 200 Got: %d", w.Code)
+	}
+
+	r, _ = http.NewRequest("GET", "http://foo.example.com/queue/testing", nil)
+	w = httptest.NewRecorder()
+
+	queueHandler(ctx, w, r)
+
+	if w.Body.String() != time.String() {
+		t.Errorf("expected %q but instead got %q", time.String(), w.Body.String())
+	}
+}
+
 func Test_QueueHandler_Invalid_Method(t *testing.T) {
 	var ctx context
 	ctx.datadir = datadir_testing()
