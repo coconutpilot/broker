@@ -76,6 +76,21 @@ func Test_PingHandler_PUT(t *testing.T) {
 	}
 }
 
+func Test_PingHandler_Invalid(t *testing.T) {
+	var ctx context
+	ctx.datadir = datadir_testing()
+
+	time := time.Now()
+	r, _ := http.NewRequest("DELETE", "", strings.NewReader(time.String()))
+	w := httptest.NewRecorder()
+
+	pingHandler(ctx, w, r)
+
+	if w.Code != 405 {
+		t.Errorf("Expected: 405 Got: %d", w.Code)
+	}
+}
+
 func Test_ViewHandler(t *testing.T) {
 	var ctx context
 	ctx.datadir = datadir_testing()
@@ -91,7 +106,21 @@ func Test_ViewHandler(t *testing.T) {
 	}
 }
 
-func Test_QueueHandler_Invalid(t *testing.T) {
+func Test_QueueHandler_Invalid_GET(t *testing.T) {
+	var ctx context
+	ctx.datadir = datadir_testing()
+
+	r, _ := http.NewRequest("GET", "http://foo.example.com/queue/invalid", strings.NewReader(""))
+	w := httptest.NewRecorder()
+
+	queueHandler(ctx, w, r)
+
+	if w.Code != 503 {
+		t.Errorf("Expected: 503 Got: %d", w.Code)
+	}
+}
+
+func Test_QueueHandler_Invalid_PUT(t *testing.T) {
 	var ctx context
 	ctx.datadir = datadir_testing()
 
