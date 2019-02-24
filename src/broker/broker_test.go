@@ -20,11 +20,11 @@ func datadir_testing() (dir string) {
 	var err error
 	dir, err = ioutil.TempDir("", "broker_test_")
 	if err != nil {
-		log.Panic("Failed ioutil.TempDir(): %s", err)
+		log.Fatalf("Failed ioutil.TempDir(): %s", err)
 	}
 	err = os.Mkdir(dir+"/testing", 0777)
 	if err != nil {
-		log.Panic("Failed os.Mkdir(): %s", err)
+		log.Fatalf("Failed os.Mkdir(): %s", err)
 	}
 	log.Printf("Test datadir is: %s\n", dir)
 	return
