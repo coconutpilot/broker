@@ -1,8 +1,7 @@
 package main
 
 import (
-	"daemon"
-	//"path/filepath"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -16,30 +15,24 @@ import (
 	"time"
 )
 
-type context struct {
+type daemon struct {
 	datadir string
 	port    int
+	mux     *http.ServeMux
 }
 
-type contextFunc func(c context, w http.ResponseWriter, r *http.Request)
-
-type contextHandler struct {
-	c context
-	f contextFunc
+func (d *daemon) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	d.mux.ServeHTTP(w, r)
 }
 
-func (h contextHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.f(h.c, w, r)
-}
-
-func viewHandler(ctx context, w http.ResponseWriter, r *http.Request) {
+func (d *daemon) viewHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("viewHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
 	fmt.Fprintf(w, r.URL.String())
 }
 
-func pingHandler(ctx context, w http.ResponseWriter, r *http.Request) {
+func (d *daemon) pingHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("pingHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
@@ -76,7 +69,7 @@ func pingHandler(ctx context, w http.ResponseWriter, r *http.Request) {
 	log.Println("pingHandler() exit")
 }
 
-func queueHandler(ctx context, w http.ResponseWriter, r *http.Request) {
+func (d *daemon) queueHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("queueHandler()")
 
 	w.Header().Set("cache-control", "private, max-age=0, no-store")
@@ -92,17 +85,17 @@ func queueHandler(ctx context, w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
-		d, err := os.Open(ctx.datadir + "/" + queue)
+		dir, err := os.Open(d.datadir + "/" + queue)
 		if err != nil {
 			// XXX: return a permanent error if queue doesn't exist
 			log.Printf("Open dir error: %s", err)
 			http.Error(w, "Retry operation", 503)
 			return
 		}
-		defer d.Close()
+		defer dir.Close()
 
 		for {
-			de, err := d.Readdirnames(10)
+			de, err := dir.Readdirnames(10)
 			if err != nil {
 				if err == io.EOF {
 					log.Println("Queue empty")
@@ -116,7 +109,7 @@ func queueHandler(ctx context, w http.ResponseWriter, r *http.Request) {
 
 			var data []byte
 			for _, de := range de {
-				filename := ctx.datadir + "/" + queue + "/" + de
+				filename := d.datadir + "/" + queue + "/" + de
 				log.Printf("Trying to lock file: %s\n", filename)
 				f, err := os.Open(filename)
 				if err != nil {
@@ -142,7 +135,7 @@ func queueHandler(ctx context, w http.ResponseWriter, r *http.Request) {
 				}
 
 				// free up the handle immediately
-				d.Close()
+				dir.Close()
 
 				// time.Sleep(3 * time.Second) // testing aid
 
@@ -173,7 +166,7 @@ func queueHandler(ctx context, w http.ResponseWriter, r *http.Request) {
 		// log.Printf("%s", body)
 
 		timestamp := time.Now().UnixNano()
-		filename := fmt.Sprintf("%s/%s/%d", ctx.datadir, queue, timestamp)
+		filename := fmt.Sprintf("%s/%s/%d", d.datadir, queue, timestamp)
 		log.Printf("Creating file: %s", filename)
 
 		f, err := os.Create(filename)
@@ -216,24 +209,22 @@ func main() {
 		log.Fatal("--datadir <datadir> missing")
 	}
 
-	var ctx context
-	ctx.datadir = fmt.Sprintf("%s", *dirtemp)
-	ctx.port = *porttemp
-	srv_addr := fmt.Sprintf(":%d", *porttemp)
+	var d daemon
+	d.datadir = fmt.Sprintf("%s", *dirtemp)
+	d.port = *porttemp
+	srvAddr := fmt.Sprintf(":%d", *porttemp)
 
-	l, err := daemon.New(srv_addr)
-	if err != nil {
-		log.Fatalf("Failed to create listener: %s", err)
-	}
+	mux := http.NewServeMux()
 
-	http.Handle("/", contextHandler{ctx, viewHandler})
-	http.Handle("/ping/", contextHandler{ctx, pingHandler})
-	http.Handle("/queue/", contextHandler{ctx, queueHandler})
+	mux.HandleFunc("/", d.viewHandler)
+	mux.HandleFunc("/ping/", d.pingHandler)
+	mux.HandleFunc("/queue/", d.queueHandler)
 
-	server := http.Server{}
+	server := http.Server{Addr: srvAddr, Handler: mux}
 
 	go func() {
-		server.Serve(l)
+		server.ListenAndServe()
+		log.Print("Shutting down")
 	}()
 
 	// This is blocking:
@@ -241,6 +232,6 @@ func main() {
 	case signal := <-bus:
 		log.Printf("Got signal: %v\n", signal)
 	}
-	l.Stop()
+	server.Shutdown(context.Background())
 	log.Println("Exiting")
 }
